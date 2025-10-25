@@ -1,3 +1,4 @@
+#VPC
 resource "aws_vpc" "main" {
   cidr_block       = var.vpc_cidr
   instance_tenancy = "default"
@@ -12,6 +13,7 @@ resource "aws_vpc" "main" {
   )
   }
 
+#IGW
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 
@@ -41,6 +43,7 @@ resource "aws_subnet" "public" {
   )
 }
 
+#PRIVATE SUBNETS
 resource "aws_subnet" "private" {
   count = length(var.private_subnet_cidrs)
   vpc_id     = aws_vpc.main.id
@@ -55,6 +58,7 @@ resource "aws_subnet" "private" {
     }
   )
 }
+
 
 resource "aws_subnet" "database" {
   count = length(var.database_subnet_cidrs)
@@ -71,6 +75,7 @@ resource "aws_subnet" "database" {
   )
 }
 
+#PUBLIC ROUTE TABLE
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -83,6 +88,7 @@ resource "aws_route_table" "public" {
   )
 }
 
+#PRIVATE ROUTE TABLE
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 
@@ -95,6 +101,7 @@ resource "aws_route_table" "private" {
   )
 }
 
+#DATABASE ROUTE TABLE
 resource "aws_route_table" "database" {
   vpc_id = aws_vpc.main.id
 
@@ -107,12 +114,14 @@ resource "aws_route_table" "database" {
   )
 }
 
+#PUBLIC ROUTE
 resource "aws_route" "public" {
   route_table_id            = aws_route_table.public.id
   destination_cidr_block    = "0.0.0.0/0"
   gateway_id = aws_internet_gateway.main.id
 }
 
+#ELASTIC IP
 resource "aws_eip" "nat" {
   domain   = "vpc"
   tags = merge(
@@ -124,6 +133,7 @@ resource "aws_eip" "nat" {
   )
 }
 
+#NAT GATEWAY
 resource "aws_nat_gateway" "nat" {
   allocation_id = aws_eip.nat.id
   subnet_id     = aws_subnet.public[0].id
@@ -141,16 +151,18 @@ resource "aws_nat_gateway" "nat" {
   depends_on = [aws_internet_gateway.main]
 }
 
+#PRIVATE EGRESS ROUTE THROUGH NAT
 resource "aws_route" "private" {
   route_table_id            = aws_route_table.private.id
   destination_cidr_block    = "0.0.0.0/0"
-  gateway_id = aws_nat_gateway.nat.id
+  nat_gateway_id = aws_nat_gateway.nat.id
 }
 
+#DATABASE EGRESS ROUTE THROUGH NAT
 resource "aws_route" "database" {
   route_table_id            = aws_route_table.database.id
   destination_cidr_block    = "0.0.0.0/0"
-  gateway_id = aws_nat_gateway.nat.id
+  nat_gateway_id = aws_nat_gateway.nat.id
 }
 
 resource "aws_route_table_association" "public" {
